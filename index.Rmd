@@ -1,0 +1,78 @@
+---
+title: "Pobreza en tiempos de pandemia"
+subtitle: "Un abordaje desde la estructura de clases ocupacionales"
+author: 
+  - Eduardo Chávez Molina 
+  - José Javier Rodríguez de la Fuente
+institute: "Instituto de Investigaciones Gino Germani (UBA)"
+date: "EXPO IIGG - 2022"
+output:
+  xaringan::moon_reader:
+    lib_dir: libs
+    css: 
+      - default
+      - fc
+      - fc-fonts
+    nature:
+      highlightStyle: github
+      highlightLines: true
+      highlightSpans: true
+      countIncrementalSlides: false
+---
+
+```{r xaringanExtra, echo = FALSE}
+xaringanExtra::use_progress_bar(color = "orange", location = "top", height = "10px")
+```
+
+# Objetivos y metodología  
+
+.left-column[
+## Punto de partida
+]
+
+.right-column[
+- Estudios estratificación y movilidad social en los últimos años  
+  
+- ¿Bienestar = ingresos monetarios?]
+
+---
+# Objetivos y alcance  
+
+.left-column[
+## Punto de partida
+## Objetivo general
+]
+
+.right-column[
+- Estudios estratificación y movilidad social en los últimos años  
+
+- ¿Bienestar = ingresos monetarios?  
+<br>
+
+**Explorar** la dimensión del consumo y su distribución en la estructura clases en las dos primeras décadas del siglo XXI en Argentina.]
+
+---
+# Objetivos y alcance  
+
+.left-column[
+## Punto de partida
+## Objetivo general
+## Objetivos específicos]
+
+.right-column[
+- Estudios estratificación y movilidad social en los últimos años  
+
+- ¿Bienestar = ingresos monetarios?  
+<br>
+
+**Explorar** la dimensión del consumo y su distribución en la estructura clases en las dos primeras décadas del siglo XXI en Argentina.  
+<br>
+
+- Tendencia de la desigualdad de ingresos y el gasto de consumo de los hogares 
+
+- Distribución de ingresos y el gasto de consumo por clase social
+
+- Peso del posicionamiento de clase sobre el gasto de consumo de los hogares (con controles)]
+
+---
+
