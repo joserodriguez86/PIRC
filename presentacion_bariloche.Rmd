@@ -1,0 +1,76 @@
+---
+title: "Pobreza en tiempos de pandemia. Un abordaje desde la estructura de clases ocupacionales"
+author:
+- Eduardo Chávez Molina$^1$
+- José Rodríguez de la Fuente$^2$
+date: "PIRC - ESA | 16 - 17 de junio de 2022"
+output:
+  beamer_presentation:
+    theme: Frankfurt
+    colortheme: dolphin
+    fonttheme: structurebold
+  slidy_presentation: default
+short-title: Pobreza en tiempos de pandemia
+lang: es
+institute:
+- $^1$IIGG (UBA) - UNMdP
+- $^2$IIGG (UBA) - CONICET
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+```{r carga base y librerías, warning=F, message=F}
+knitr::opts_chunk$set(dev.args = list(png = list(type = "cairo")))
+pacman::p_load(tidyverse, survey, gtsummary, sf, ggthemes, eph, ggsci, spatstat, 
+               jtools, ggeffects, ggsci)
+
+theme_set(theme_grey())
+
+rm(list=ls())
+load("bases/base_libro.RData")
+
+eph <- get_microdata(year = c(2016:2021), type='individual', trimester = c(1:4),
+                    vars = c("CODUSU", "NRO_HOGAR", "ANO4", "TRIMESTRE", "REGION",
+                             "PONDERA", "PONDIH", "CH04", "CH06", "ITF"))
+
+eph <- eph %>%
+    select(microdata) %>%
+    unnest(cols = c(microdata))
+
+eph$ano_trim <- paste0(as.character(eph$ANO4), as.character(eph$TRIMESTRE))
+
+canastas <- readxl::read_excel("bases/canastas_serie.xlsx")
+
+```
+
+
+```{r descriptivos, echo=F, warning=F, message=F}
+theme_gtsummary_language("es", decimal.mark = ",", big.mark = ".")
+
+base_pirc %>%
+  svydesign(data = ., ids = ~ 1, weights = base_pirc$POND2R_FIN) %>%
+  tbl_svysummary(include = c(pobreza, itf_imp, sexo_f, edad_grupo, region_eph, 
+                             nivel_ed_f, cobhe_f,
+                             formal, desocup2, tray_estado_f, ife, potenciar, 
+                             atp, teletrabajo, 
+                             covid_cierre_despido, covid_baja_ingresos, covid_cambio),
+                 label = c(pobreza ~ "Pobreza", itf_imp ~ "Ingreso total familiar", 
+                           sexo_f ~ "Sexo", edad_grupo ~ "Grupo etario", 
+                           region_eph ~ "Región", nivel_ed_f ~ "Nivel educativo",
+                           cobhe_f ~ "Clase social", formal ~ "Formalidad", 
+                           desocup2 ~ "Desocupados 2020-2021 (período > 2 meses)", 
+                           tray_estado_f ~ "Trayectoria estado ocupacional (2015-2021", ife ~ "IFE",
+                           potenciar ~ "Potenciar trabajo", atp ~ "ATP", 
+                           teletrabajo ~ "Teletrabajo", 
+                           covid_cierre_despido ~ "Cierre / despido / renuncia",
+                           covid_baja_ingresos ~ "Baja salarios / ingresos / ventas", 
+                           covid_cambio ~ "Cambio actividad / rubro"), 
+                 statistic = list(all_continuous() ~ "{mean} ({min}, {max})", 
+                                  all_categorical() ~ "{n} ({p}%)"),
+                 digits = list(all_categorical() ~ c(0, 1)),
+                 missing = "no")%>% 
+  as_flex_table()
+
+```

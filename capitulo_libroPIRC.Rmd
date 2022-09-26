@@ -1,0 +1,314 @@
+---
+title: "Pobreza en tiempos de pandemia. Un abordaje desde la estructura de clases ocupacionales"
+author: "Eduardo Chávez Molina - José Rodríguez de la Fuente"
+date: "22/4/2022"
+output: word_document
+---
+
+```{r carga base y librerías, echo=F, warning=F, message=F}
+knitr::opts_chunk$set(dev.args = list(png = list(type = "cairo")))
+pacman::p_load(tidyverse, survey, gtsummary, sf, ggthemes, eph, ggsci, spatstat, 
+               jtools, ggeffects, ggsci, DescTools)
+
+rm(list=ls())
+load("bases/base_libro.RData")
+
+eph <- get_microdata(year = c(2016:2021), type='individual', trimester = c(1:4),
+                     vars = c("CODUSU", "NRO_HOGAR", "ANO4", "TRIMESTRE", "REGION",
+                              "PONDERA", "PONDIH", "CH04", "CH06", "ITF"))
+
+eph <- eph %>%
+     select(microdata) %>%
+     unnest(cols = c(microdata))
+
+eph$ano_trim <- paste0(as.character(eph$ANO4), as.character(eph$TRIMESTRE))
+
+canastas <- readxl::read_excel("bases/canastas_serie.xlsx")
+
+```
+
+
+```{r descriptivos, echo=F, warning=F, message=F}
+theme_gtsummary_language("es", decimal.mark = ",", big.mark = ".")
+
+base_pirc %>%
+  svydesign(data = ., ids = ~ 1, weights = base_pirc$POND2R_FIN_n) %>%
+  tbl_svysummary(include = c(pobreza, itf_imp, sexo_f, edad_grupo, MIEMBROS, region_eph, 
+                             nivel_ed_f, cobhe_f,
+                             formal, desocup2, tray_estado_f, ife, potenciar, 
+                             atp, teletrabajo, 
+                             covid_cierre_despido, covid_baja_ingresos, covid_cambio),
+                 label = c(pobreza ~ "Pobreza", itf_imp ~ "Ingreso total familiar", 
+                           sexo_f ~ "Sexo", edad_grupo ~ "Grupo etario", 
+                           MIEMBROS ~ "Tamaño hogar", 
+                           region_eph ~ "Región", nivel_ed_f ~ "Nivel educativo",
+                           cobhe_f ~ "Clase social", formal ~ "Formalidad", 
+                           desocup2 ~ "Desocupados 2020-2021 (período > 2 meses)", 
+                           tray_estado_f ~ "Trayectoria estado ocupacional (2015-2021", 
+                           ife ~ "IFE",
+                           potenciar ~ "Potenciar trabajo", atp ~ "ATP", 
+                           teletrabajo ~ "Teletrabajo", 
+                           covid_cierre_despido ~ "Cierre / despido / renuncia",
+                           covid_baja_ingresos ~ "Baja salarios / ingresos / ventas", 
+                           covid_cambio ~ "Cambio actividad / rubro"), 
+                 statistic = list(all_continuous() ~ "{mean} ({min}, {max})", 
+                                  all_categorical() ~ "{n} ({p}%)"),
+                 digits = list(all_categorical() ~ c(0, 1)),
+                 missing = "no")%>% 
+  as_flex_table()
+
+```
+
+```{r descriptivos2, echo=F, warning=F, message=F}
+base_pirc %>%
+  svydesign(data = ., ids = ~ 1, weights = base_pirc$POND2R_FIN) %>%
+  tbl_svysummary(include = c(sexo_f, region_eph, cobhe_f),
+                 label = c(sexo_f ~ "Sexo", region_eph ~ "Región",
+                           cobhe_f ~ "Clase social"), 
+                 statistic = list(all_categorical() ~ "{n} ({p}%)"),
+                 digits = list(all_categorical() ~ c(0, 1)),
+                 missing = "no",
+                 percent = "row",
+                 by = condicion) %>% 
+  add_p() %>% 
+  as_flex_table()
+
+
+```
+
+```{r pruebas, echo=F, warning=F, message=F}
+base_pirc %>% 
+  group_by(tray_estado_f) %>% 
+  summarise(mean = weighted.mean(M2.4, POND2R_FIN),
+            mediana = weighted.median(M2.4, POND2R_FIN),
+            primer_t = weighted.mean(M4.1, POND2R_FIN))
+
+prop.table(table(base_pirc$tray_estado_f, base_pirc$M2.13, useNA = "always"), margin = 1)
+
+base_pirc %>% 
+  group_by(cobhe_f) %>% 
+  summarise(moda1 = modeest::mfv(CNO_encuestado),
+            moda2 = modeest::mfv(CIUO_encuestado, na.rm = TRUE))
+
+
+```
+
+```{r pobreza eph}
+eph <- calculate_poverty(base = eph, basket = canastas, print_summary = TRUE)
+
+eph <- eph %>% 
+  mutate(pobreza_dic = case_when(situacion %in% c("pobre", "indigente") ~ 1,
+                                 situacion %in% "no_pobre" ~ 0))
+
+eph %>%
+  filter(CH06 >= 18) %>% 
+  group_by(ano_trim) %>% 
+  summarise(porcentaje = weighted.mean(pobreza_dic, PONDIH, na.rm = T)) %>% 
+  ggplot(mapping = aes(x = as.character(ano_trim), y = porcentaje, group = 1)) +
+  geom_vline(xintercept=c("20182", "20201"), linetype=5, color = "#ff7f0e") +
+  geom_point(size = 2, color = "#d62728") +
+  geom_line(size = .7, color = "#d62728") +
+  theme_light() +
+  annotate(geom = "text", x = "20183", y = .43, label = "Crisis de deuda \nexterna", hjust = "left",
+           fontface="bold", size = 3.5) +
+  annotate(geom = "curve", x = "20191", y = .4, xend = "20182", yend = .3, curvature = -.5,
+            arrow = arrow(length = unit(2, "mm"))) +
+  annotate(geom = "text", x = "20203", y = .15, label = "Inicio ASPO", hjust = "left",
+           fontface="bold", size = 3.5) +
+  annotate(geom = "curve", x = "20204", y = .13, xend = "20201", yend = .1, curvature = -.5,
+            arrow = arrow(length = unit(2, "mm"))) +
+  labs(y = "% Pobreza") +
+  theme(legend.title = element_text(size = 9, face = "bold"),
+        legend.text = element_text(size = 9),
+        legend.key.height=unit(1, "cm"),
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(size = 11),
+        axis.text.y = element_text(size = 9),
+        axis.text.x = element_text(angle = 45, vjust = 0.5, size = 9),
+        plot.caption = element_text(size = 9, hjust = 1),
+        panel.grid = element_line(size = .2),
+        strip.text = element_text(face = "bold"),
+        legend.background = element_blank()) +
+  scale_y_continuous(breaks = seq(0, .6, by = 0.05), limits = c(0, .5), 
+                     labels = scales::percent_format(accuracy = 1L))
+
+ggsave(filename = "graficos/pobreza.jpg", dpi = 300, type = "cairo", width = 8, height = 6)
+```
+
+
+```{r regresiones, echo=F, warning=F, message=F}
+
+base_reg <- base_pirc %>% 
+  filter(!is.na(cobhe_f) & cobhe != 1)
+
+base_reg$cobhe_f <- relevel(base_reg$cobhe_f, ref = "Desocupados / inactivos")
+# base_reg$sexo_f <- relevel(base_reg$sexo_f, ref = "Varón")
+# base_reg$edad_grupo <- relevel(base_reg$edad_grupo, ref = ">66")
+base_reg$region_eph_f <- factor(base_reg$region_eph)
+base_reg$region_eph_f <-relevel(base_reg$region_eph_f, ref = "GBA")
+base_reg$formal <- factor(base_reg$formal, labels = c("Informal", "Formal"))
+base_reg$formal <- relevel(base_reg$formal, ref = "Formal")
+base_reg$desocup2 <- factor(base_reg$desocup2, labels = c("Ocupado", "Desocupado 20-21"))
+# base_reg$desocup2 <- relevel(base_reg$desocup2, ref = "Ocupado")
+
+m1 <- glm(pobreza ~ cobhe_f, data = base_reg, weights = POND2R_FIN_n, family = "binomial")
+m2 <- glm(pobreza ~ cobhe_f + sexo_f + edad_grupo + region_eph_f + nivel_ed_f + MIEMBROS, data = base_reg, weights = POND2R_FIN_n, family = "binomial")
+m3 <- glm(pobreza ~ cobhe_f + sexo_f + edad_grupo + region_eph_f + nivel_ed_f + MIEMBROS + formal + desocup2, data = base_reg, weights = POND2R_FIN_n, family = "binomial")
+m4 <- glm(pobreza ~ cobhe_f + sexo_f + edad_grupo + region_eph_f + nivel_ed_f + MIEMBROS + formal + desocup2 + ife + potenciar + atp + teletrabajo + covid_cierre_despido + covid_baja_ingresos + covid_cambio, data = base_reg, weights = POND2R_FIN_n, family = "binomial")
+
+export_summs(m1, m2, m3, m4, 
+             tidy_args = list(exponentiate = TRUE),
+             model.names = c("Modelo 1","Modelo 2","Modelo 3", "Modelo 4"),
+             stars = c(`***` = 0.01, `**` = 0.05, `*` = 0.1),
+             error_pos = "same")
+
+summ(m4, vifs = T)
+
+PseudoR2(m1, "McFaddenAdj")
+PseudoR2(m2, "McFaddenAdj")
+PseudoR2(m3, "McFaddenAdj")
+PseudoR2(m4, "McFaddenAdj")
+```
+
+
+```{r probabilidades, echo=F, warning=F, message=F}
+
+# Por sexo
+
+# m5 <- glm(pobreza ~ cobhe_f + sexo_f + formal + desocup2 + ife + potenciar + atp + teletrabajo + covid_cierre_despido + covid_baja_ingresos + covid_cambio, data = base_reg, weights = POND2R_FIN_n, family = "binomial")
+
+predict_sexo <- ggpredict(m4, terms = c("cobhe_f", "sexo_f"))
+predict_sexo$x <- fct_relevel(predict_sexo$x, "Desocupados / inactivos", after = 8)
+
+predict_sexo %>%   
+  ggplot(aes(x = x, group = group)) + 
+  geom_pointrange(aes(y = predicted, ymin = conf.low, ymax = conf.high, color = group), size = 0.4) +
+  theme_light() +
+  labs(y = "Probabilidades estimadas") +
+  theme(axis.text.x = element_text(size = 8),
+        axis.title.x = element_blank(),
+        legend.position = "bottom",
+        legend.title = element_blank()) +
+  scale_x_discrete(labels = function(x) str_wrap(x, width = 13)) +
+  scale_color_d3() +
+  scale_y_continuous(breaks = seq(0, .70, by = 0.05))
+  
+ggsave(filename = "graficos/predict_sexo.jpg", dpi = 300, width = 8, height = 6)
+
+
+# Por región
+# m6 <- glm(pobreza ~ cobhe_f + region_eph_f + formal + desocup2 + ife + potenciar + atp + teletrabajo + covid_cierre_despido + covid_baja_ingresos + covid_cambio, data = base_reg, weights = POND2R_FIN_n, family = "binomial")
+
+predict_region <- ggpredict(m4, terms = c("cobhe_f", "region_eph_f"))
+predict_region$x <- fct_relevel(predict_region$x, "Desocupados / inactivos", after = 8)
+
+predict_region %>%   
+  ggplot(aes(x = x, group = group)) + 
+  geom_pointrange(aes(y = predicted, ymin = conf.low, ymax = conf.high, color = group),
+                  position = position_jitter(0.25), size = 0.4) +
+  theme_light() +
+  labs(y = "Probabilidades estimadas") +
+  theme(axis.text.x = element_text(size = 8),
+        axis.title.x = element_blank(),
+        legend.position = "bottom",
+        legend.title = element_blank()) +
+  scale_x_discrete(labels = function(x) str_wrap(x, width = 13)) +
+  scale_color_d3() +
+  scale_y_continuous(breaks = seq(0, .7, by = 0.05)) +
+  guides(colour = guide_legend(nrow = 1))
+  
+ggsave(filename = "graficos/predict_region.jpg", dpi = 300, width = 8, height = 6)
+```
+
+
+```{r ingresos, echo=F, warning=F, message=F}
+
+base_pirc %>% 
+  filter(!is.na(cobhe_f) & itf_imp <= 325000) %>% 
+  ggplot(aes(x = cobhe_f, y = itf_imp, fill = cobhe_f, weight = POND2R_FIN_n)) +
+  geom_boxplot(outlier.alpha = 0.1, show.legend = FALSE) +
+  theme_light() +
+  labs(y = "ITF") +
+  theme(axis.text.x = element_text(size = 8.5),
+        axis.title.x = element_blank(),
+        legend.title = element_blank()) +
+  scale_x_discrete(labels = function(x) str_wrap(x, width = 10)) +
+  scale_fill_d3() +
+  scale_y_continuous(labels = scales::number, breaks = seq(0, 400000, by = 20000))
+
+ggsave(filename = "graficos/ingresos_clase.jpg", dpi = 300, width = 8, height = 6)
+```
+
+
+```{r graficos descriptivos, echo=F, warning=F, message=F}
+base_pirc %>% 
+  filter(!is.na(cobhe_f)) %>% 
+  group_by(cobhe_f) %>% 
+  summarise(pobreza = weighted.mean(pobreza, POND2R_FIN_n, na.rm = T)) %>% 
+  ggplot(aes(x = cobhe_f, y = pobreza, fill = cobhe_f)) +
+  geom_text(aes(label = scales::percent(pobreza, accuracy = 1L), 
+                y = pobreza + 0.005), position = position_dodge(0.9), vjust = 0) +
+  geom_bar(stat = "identity") +
+  theme_light() +
+  labs(y = "% pobreza") +
+  theme(legend.position = "none",
+        axis.text.x = element_text(size = 8),
+        axis.title.x = element_blank(),
+        legend.title = element_blank()) +
+  scale_x_discrete(labels = function(x) str_wrap(x, width = 10)) +
+  scale_fill_d3() +
+  scale_y_continuous(breaks = seq(0, .6, by = 0.05), limits = c(0, .55), 
+                     labels = scales::percent_format(accuracy = 1L))
+
+ggsave(filename = "graficos/pobreza_clase.jpg", dpi = 300, width = 8, height = 6)
+
+
+base_pirc %>% 
+  group_by(sexo_f) %>% 
+  summarise(pobreza = weighted.mean(pobreza, POND2R_FIN_n, na.rm = T)) %>% 
+  ggplot(aes(x = sexo_f, y = pobreza, fill = sexo_f)) +
+  geom_text(aes(label = scales::percent(pobreza, accuracy = 1L), 
+                y = pobreza + 0.005), position = position_dodge(0.9), vjust = 0,
+            size = 6) +
+  geom_bar(stat = "identity", width = 0.5) +
+  theme_light() +
+  labs(y = "% pobreza") +
+  theme(legend.position = "none",
+        axis.text.x = element_text(size = 14),
+        axis.title.x = element_blank(),
+        legend.title = element_blank(),
+        axis.title = element_text(size = 14),
+        axis.text.y = element_text(size = 12)) +
+  scale_x_discrete(labels = function(x) str_wrap(x, width = 10)) +
+  scale_fill_d3() +
+  scale_y_continuous(breaks = seq(0, .6, by = 0.05), limits = c(0, .4), 
+                     labels = scales::percent_format(accuracy = 1L))
+
+ggsave(filename = "graficos/sexo_clase.jpg", dpi = 300, width = 8, height = 6)
+
+
+base_pirc %>% 
+  group_by(region_eph) %>% 
+  summarise(pobreza = weighted.mean(pobreza, POND2R_FIN_n, na.rm = T)) %>% 
+  ggplot(aes(x = region_eph, y = pobreza, fill = region_eph)) +
+  geom_text(aes(label = scales::percent(pobreza, accuracy = 1L), 
+                y = pobreza + 0.005), position = position_dodge(0.9), vjust = 0,
+            size = 6) +
+  geom_bar(stat = "identity") +
+  theme_light() +
+  labs(y = "% pobreza") +
+  theme(legend.position = "none",
+        axis.text.x = element_text(size = 14),
+        axis.title.x = element_blank(),
+        legend.title = element_blank(),
+        axis.title = element_text(size = 14),
+        axis.text.y = element_text(size = 12)) +
+  scale_x_discrete(labels = function(x) str_wrap(x, width = 10)) +
+  scale_fill_d3() +
+  scale_y_continuous(breaks = seq(0, .6, by = 0.05), limits = c(0, .40), 
+                     labels = scales::percent_format(accuracy = 1L))
+
+ggsave(filename = "graficos/region_clase.jpg", dpi = 300, width = 8, height = 6)
+
+```
+
